@@ -76,22 +76,15 @@ function naverLowestPrice(query){
 /* ---- 동시 호출 수 제한해서 순차/소량 병렬 처리 ---- */
 async function fetchPrices(items){
   const out = {};
-  const CONCURRENCY = 4;
-  let idx = 0;
-  async function worker(){
-    while(idx < items.length){
-      const cur = items[idx++];
-      const key = cur.q || cur.id;
-      const hit = CACHE.get(key);
-      if(hit && (Date.now() - hit.ts) < CACHE_TTL){ out[cur.id] = hit.data; continue; }  // 캐시 사용
-      const r = await naverLowestPrice(key);
-      if(r && r.price > 0){ CACHE.set(key, { data:r, ts:Date.now() }); }                 // 성공분만 캐시
-      out[cur.id] = r;
-    }
+  for(const cur of items){
+    const key = cur.q || cur.id;
+    const hit = CACHE.get(key);
+    if(hit && (Date.now() - hit.ts) < CACHE_TTL){ out[cur.id] = hit.data; continue; }  // 캐시 사용
+    const r = await naverLowestPrice(key);
+    if(r && r.price > 0){ CACHE.set(key, { data:r, ts:Date.now() }); }                  // 성공분만 캐시
+    out[cur.id] = r;
+    await new Promise(res=>setTimeout(res, 120));   // 네이버 초당 호출 한도(10/s) 회피
   }
-  const workers = [];
-  for(let i=0;i<Math.min(CONCURRENCY, items.length);i++) workers.push(worker());
-  await Promise.all(workers);
   return out;
 }
 

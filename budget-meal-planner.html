@@ -223,6 +223,33 @@ input:focus,select:focus{outline:none; border-color:var(--green); background:#ff
   </div>
 
   <div class="card">
+    <h2>🧂 이미 있는 재료 (집에 있으면 빼요)</h2>
+    <div class="chips" id="chips-pantry">
+      <div class="chip" data-pan="rice">쌀</div>
+      <div class="chip" data-pan="egg">계란</div>
+      <div class="chip" data-pan="soysauce">간장</div>
+      <div class="chip" data-pan="doenjang">된장</div>
+      <div class="chip" data-pan="gochujang">고추장</div>
+      <div class="chip" data-pan="redpepper">고춧가루</div>
+      <div class="chip" data-pan="sugar">설탕</div>
+      <div class="chip" data-pan="oil">식용유</div>
+      <div class="chip" data-pan="oliveoil">올리브유</div>
+      <div class="chip" data-pan="sesoil">참기름</div>
+      <div class="chip" data-pan="garlic">다진마늘</div>
+      <div class="chip" data-pan="onion">양파</div>
+      <div class="chip" data-pan="greenonion">대파</div>
+      <div class="chip" data-pan="milk">우유</div>
+      <div class="chip" data-pan="butter">버터</div>
+      <div class="chip" data-pan="flour">밀가루</div>
+      <div class="chip" data-pan="vinegar">식초</div>
+      <div class="chip" data-pan="ketchup">케첩</div>
+      <div class="chip" data-pan="mayo">마요네즈</div>
+      <div class="chip" data-pan="curry">카레가루</div>
+    </div>
+    <div class="hint">고른 재료는 장바구니·예산에서 빠져요. 장바구니에서 항목별 '집에 있음 ✓'으로도 뺄 수 있어요.</div>
+  </div>
+
+  <div class="card">
     <h2>🔗 실시간 가격 서버 (선택)</h2>
     <label class="fld" style="margin-bottom:6px">
       <span class="lab">가격 서버 주소</span>
@@ -327,7 +354,7 @@ RECIPES.forEach(recipeStats);
 /* =========================================================
    3. 상태 & 식단 생성 알고리즘
    ========================================================= */
-const state = { days:30, budget:300000, meals:3, people:1, prefs:new Set(), excl:new Set(), cuisines:new Set(), effortMax:3, plan:null, cart:null };
+const state = { days:30, budget:300000, meals:3, people:1, prefs:new Set(), excl:new Set(), cuisines:new Set(), effortMax:3, pantry:new Set(), plan:null, cart:null };
 let POOL_B=[], POOL_M=[];   // 아침/메인 레시피 풀 (예산 조정에 재사용)
 
 function excludedRecipe(r){
@@ -429,13 +456,14 @@ function buildCart(){
   let purchaseTotal=0, consumedTotal=0;
   Object.entries(need).forEach(([id,amt])=>{
     const i=ING[id];
+    const owned = state.pantry && state.pantry.has(id);   // 집에 있는 재료
     const packs=Math.ceil(amt / i.packSize);
-    const buyCost=packs*packPriceOf(id);
-    const consumed=Math.round(ingCost(id,amt));
+    const buyCost = owned ? 0 : packs*packPriceOf(id);
+    const consumed = owned ? 0 : Math.round(ingCost(id,amt));
     purchaseTotal+=buyCost; consumedTotal+=consumed;
-    items.push({id, name:i.name, unit:i.unit, amt:Math.round(amt), packs, packSize:i.packSize, packPrice:i.packPrice, buyCost, consumed});
+    items.push({id, name:i.name, unit:i.unit, amt:Math.round(amt), packs, packSize:i.packSize, packPrice:i.packPrice, buyCost, consumed, owned});
   });
-  items.sort((a,b)=>b.buyCost-a.buyCost);
+  items.sort((a,b)=> (a.owned?1:0)-(b.owned?1:0) || b.buyCost-a.buyCost);
   state.cart={items, purchaseTotal, consumedTotal};
 }
 
@@ -511,10 +539,12 @@ function renderCart(){
       ? `<div class="flag ok">💹 네이버 실시간 최저가 적용됨${PRICE_TIME?' · '+PRICE_TIME.toLocaleTimeString("ko-KR",{hour:'2-digit',minute:'2-digit'})+' 기준':''}</div>`
       : `<div class="tipbox" style="background:#eef4fb;border-color:#cfe0f3;color:#2f5e8f">📡 지금은 <b>내장 시세 DB</b> 기준이에요. 가격 서버를 켜면 네이버 실시간 최저가로 바꿀 수 있어요.</div>`}
     <button class="btn" style="margin-top:12px;padding:13px;font-size:15px" onclick="loadLivePrices(this)">💹 네이버 실시간 최저가 불러오기</button>
+    <button class="btn" style="margin-top:8px;padding:14px;font-size:15px;background:var(--blue);box-shadow:0 3px 10px rgba(47,111,176,.3)" onclick="startShopping()">🛒 네이버로 한 번에 장보기</button>
     <div class="row2" style="margin-top:8px;gap:8px">
       <button class="btn sec" style="padding:11px;font-size:13px" onclick="replanWithCurrentPrices()">🔄 이 가격으로 다시 짜기</button>
       <button class="btn sec" style="padding:11px;font-size:13px" onclick="copyShoppingList()">📋 목록 복사</button>
-    </div>`;
+    </div>
+    ${c.items.filter(x=>x.owned).length?`<div class="hint" style="margin-top:8px">🧂 집에 있는 재료 ${c.items.filter(x=>x.owned).length}종 제외됨 (금액에서 빠짐)</div>`:''}`;
 
   $("#cart-list").innerHTML=`<h2>📦 재료별 구매 · 네이버로 담기 (${c.items.length}종)</h2>`+
     c.items.map(it=>{
@@ -522,12 +552,16 @@ function renderCart(){
       const packLabel = it.unit==="ea" ? `${it.packSize}개입 × ${it.packs}` : `${it.packSize>=1000?(it.packSize/1000)+'kg':it.packSize+'g'} × ${it.packs}팩`;
       const live = PRICE_NAVER[it.id];
       const liveTag = live ? ` <span style="color:var(--blue);font-size:10px;font-weight:700">·네이버최저가</span>` : "";
-      return `<div class="cartrow">
-        <div class="cn"><div class="nm">${it.name}${liveTag}</div>
-          <div class="qt">${usedLabel} · 구매 ${packLabel}</div></div>
+      const ownTag = it.owned ? ` <span style="color:var(--sub);font-size:10px;font-weight:700">·집에 있음</span>` : "";
+      return `<div class="cartrow" style="${it.owned?'opacity:.5':''}">
+        <div class="cn"><div class="nm">${it.name}${liveTag}${ownTag}</div>
+          <div class="qt">${it.owned?`${usedLabel} · 보유중(구매 안 함)`:`${usedLabel} · 구매 ${packLabel}`}</div></div>
         <div style="text-align:right;white-space:nowrap">
-          <div class="cp">${won(it.buyCost)}</div>
-          <a href="${live&&live.link?live.link:naverLink(it.id)}" target="_blank" rel="noopener" style="font-size:11.5px;color:var(--blue);font-weight:700;text-decoration:none">네이버 담기 ›</a>
+          <div class="cp">${it.owned?'—':won(it.buyCost)}</div>
+          ${it.owned
+            ? `<span onclick="togglePantry('${it.id}')" style="font-size:11px;color:var(--green-d);font-weight:700;cursor:pointer">↩︎ 살게요</span>`
+            : `<span onclick="openNaverProduct('${it.id}',this)" style="font-size:11.5px;color:var(--blue);font-weight:700;cursor:pointer">네이버 담기 ›</span>
+               <span onclick="togglePantry('${it.id}')" style="display:block;font-size:10.5px;color:var(--sub);cursor:pointer;margin-top:3px">집에 있음 ✓</span>`}
         </div></div>`;
     }).join("");
 }
@@ -535,7 +569,7 @@ function renderCart(){
 /* ---- 네이버 실시간 가격 연동 ---- */
 const DEFAULT_PRICE_API = "http://localhost:8787";   // 가격 서버 기본 주소
 // 앱(블루스택/폰)에서 PC 로컬 서버를 자동 탐색할 후보 주소들
-const PRICE_CANDIDATES = ["http://192.168.45.139:8787","http://10.0.4.202:8787","http://192.168.228.1:8787","http://192.168.22.1:8787","http://192.168.56.1:8787","http://10.0.2.2:8787","http://localhost:8787"];
+const PRICE_CANDIDATES = ["https://alddeul-meal-planner.onrender.com","http://192.168.45.139:8787","http://localhost:8787"];
 function priceApiBase(){
   // 1) 사용자가 설정에 저장한 주소 우선
   try{ const u=localStorage.getItem("priceApiUrl"); if(u) return u.replace(/\/+$/,""); }catch(e){}
@@ -545,10 +579,13 @@ function priceApiBase(){
 }
 // 후보 주소들을 /health 로 찔러보고 살아있는 서버를 찾는다
 async function resolvePriceBase(){
-  const fixed=priceApiBase(); if(fixed) return fixed;
-  for(const b of PRICE_CANDIDATES){
+  const cands=[];
+  try{ const u=localStorage.getItem("priceApiUrl"); if(u) cands.push(u.replace(/\/+$/,"")); }catch(e){}
+  if((location.protocol==="http:"||location.protocol==="https:") && location.hostname && location.hostname!=="localhost" && location.hostname!=="127.0.0.1"){ if(!cands.includes(location.origin)) cands.push(location.origin); }
+  for(const b of PRICE_CANDIDATES){ if(!cands.includes(b)) cands.push(b); }
+  for(const b of cands){
     try{
-      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),2500);
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), 60000); // 무료서버 첫 깨어남(최대 ~50초) 대비
       const r=await fetch(b+"/health",{cache:"no-store",signal:ctrl.signal}); clearTimeout(t);
       const j=await r.json();
       if(j && j.ok){ try{localStorage.setItem("priceApiUrl",b);}catch(e){} return b; }
@@ -594,7 +631,7 @@ function replanWithCurrentPrices(){
 }
 function copyShoppingList(){
   if(!state.cart) return;
-  const lines=state.cart.items.map(it=>{
+  const lines=state.cart.items.filter(it=>!it.owned).map(it=>{
     const pack = it.unit==="ea" ? `${it.packs}개입팩` : `${it.packSize>=1000?(it.packSize/1000)+'kg':it.packSize+'g'} ${it.packs}팩`;
     return `• ${it.name} ${pack} — ${won(it.buyCost)}`;
   });
@@ -603,6 +640,63 @@ function copyShoppingList(){
     navigator.clipboard.writeText(txt).then(()=>alert("장보기 목록을 복사했어요!"),()=>prompt("아래 목록을 복사하세요:",txt));
   } else { prompt("아래 목록을 복사하세요:",txt); }
 }
+
+/* ---- 집에 있는 재료(보유) 토글 ---- */
+function togglePantry(id){
+  if(state.pantry.has(id)) state.pantry.delete(id); else state.pantry.add(id);
+  buildCart(); renderCart();
+}
+
+/* ---- 네이버 실제 상품 페이지 열기 (검색결과 X) ---- */
+async function openNaverProduct(id, el){
+  const old = el ? el.textContent : "";
+  if(el) el.textContent = "여는 중…";
+  let link = PRICE_NAVER[id] && PRICE_NAVER[id].link;
+  if(!link){
+    try{
+      const base = await resolvePriceBase();
+      if(base){
+        const r = await fetch(base+"/api/price?q="+encodeURIComponent(searchQuery(id)),{cache:"no-store"});
+        const j = await r.json();
+        if(j && j.link){ link=j.link; PRICE_NAVER[id]=PRICE_NAVER[id]||j; }
+      }
+    }catch(e){}
+  }
+  if(el) el.textContent = old || "네이버 담기 ›";
+  window.open(link || naverLink(id), "_blank");   // 상품 링크 없으면 검색으로 폴백
+}
+
+/* ---- 한 번에 장보기 도우미 (상품 페이지를 차례로) ---- */
+let _shop=[], _shopIdx=0;
+function startShopping(){
+  if(!state.cart){ alert("먼저 식단표를 만들어 주세요!"); return; }
+  _shop = state.cart.items.filter(it=>!it.owned);
+  if(!_shop.length){ alert("담을 재료가 없어요. (전부 '집에 있음'으로 표시됨)"); return; }
+  _shopIdx = 0; renderShopStep();
+  $("#modal").classList.remove("hidden");
+}
+function renderShopStep(){
+  const it=_shop[_shopIdx], total=_shop.length;
+  const sizeLabel = it.unit==="ea" ? `${it.packs}개입` : `${it.packSize>=1000?(it.packSize/1000)+'kg':it.packSize+'g'} × ${it.packs}팩`;
+  $("#sheet").innerHTML=`
+    <span class="x" onclick="closeModal()">×</span>
+    <h3>🛒 네이버로 장보기</h3>
+    <div class="meta">${_shopIdx+1} / ${total} 번째 재료</div>
+    <div class="budgetbar" style="margin:6px 0 16px"><div style="width:${Math.round((_shopIdx)/total*100)}%"></div></div>
+    <div style="text-align:center;padding:8px 0 16px">
+      <div style="font-size:24px;font-weight:800">${it.name}</div>
+      <div class="mini" style="margin-top:5px">${sizeLabel} · 약 ${won(it.buyCost)}</div>
+    </div>
+    <button class="btn" style="padding:15px;font-size:16px" onclick="openNaverProduct('${it.id}',this)">🔗 이 상품 네이버에서 열기</button>
+    <div class="row2" style="margin-top:10px;gap:8px">
+      <button class="btn sec" style="padding:12px;${_shopIdx===0?'opacity:.4':''}" ${_shopIdx===0?'disabled':''} onclick="shopMove(-1)">‹ 이전</button>
+      ${_shopIdx<total-1
+        ? `<button class="btn" style="padding:12px" onclick="shopMove(1)">담았어요 · 다음 ›</button>`
+        : `<button class="btn" style="padding:12px" onclick="closeModal()">완료 ✓</button>`}
+    </div>
+    <div class="tipbox" style="margin-top:12px">상품 페이지에서 <b>'장바구니 담기'</b>를 누른 뒤 '다음'을 눌러주세요. 네이버가 외부 앱의 자동 담기를 막아서 한 개씩 담는 방식이에요. 이미 가진 재료는 장바구니에서 '집에 있음 ✓'으로 빼면 여기서도 안 나와요.</div>`;
+}
+function shopMove(d){ const n=_shopIdx+d; if(n>=0 && n<_shop.length){ _shopIdx=n; renderShopStep(); } }
 
 function renderRecipes(){
   if(!state.plan){ $("#recipe-index").innerHTML=`<div class="empty"><div class="e">📖</div>먼저 식단표를 만들면<br>사용된 레시피가 여기 모여요.</div>`; return; }
@@ -696,6 +790,12 @@ $("#chips-cuisine").addEventListener("click",e=>{
   const c=e.target.closest(".chip"); if(!c)return;
   c.classList.toggle("on");
   c.classList.contains("on")?state.cuisines.add(c.dataset.cuisine):state.cuisines.delete(c.dataset.cuisine);
+});
+$("#chips-pantry").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c)return;
+  c.classList.toggle("on");
+  c.classList.contains("on")?state.pantry.add(c.dataset.pan):state.pantry.delete(c.dataset.pan);
+  if(state.cart){ buildCart(); }   // 이미 장바구니가 있으면 즉시 반영
 });
 
 function readInputs(){
