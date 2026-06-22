@@ -1,0 +1,17 @@
+# Render 무료 배포 설정 (Blueprint)
+# 1) 이 폴더 전체를 GitHub 저장소에 올림
+# 2) Render(https://render.com) → New + → Blueprint → 저장소 선택
+# 3) 배포 후 Environment 에서 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 입력
+services:
+  - type: web
+    name: alddeul-meal-planner
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    autoDeploy: true
+    envVars:
+      - key: NAVER_CLIENT_ID
+        sync: false        # 대시보드에서 직접 입력(비밀)
+      - key: NAVER_CLIENT_SECRET
+        sync: false        # 대시보드에서 직접 입력(비밀)

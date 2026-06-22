@@ -1,0 +1,7 @@
+node_modules/
+*.bat
+*.apk
+*.bak
+*.bak2
+.env
+.DS_Store
