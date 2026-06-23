@@ -67,11 +67,18 @@ function naverLowestPrice(query){
           const floor = anchor * 0.4;
           let pool = items.filter(it=>parseInt(it.lprice,10) >= floor);
           if(!pool.length) pool = items;   // 전부 걸러지면 안전하게 원본 사용
-          // 3) 남은 정상 상품들 중 '진짜 최저가' 선택
-          let best=pool[0], bestP=parseInt(pool[0].lprice,10);
-          pool.forEach(it=>{ const p=parseInt(it.lprice,10); if(p<bestP){ bestP=p; best=it; } });
+          // 3) 절대 최저가 상품을 찾는다
+          let abs=pool[0], absP=parseInt(pool[0].lprice,10);
+          pool.forEach(it=>{ const p=parseInt(it.lprice,10); if(p<absP){ absP=p; abs=it; } });
+          // 4) 네이버페이(네이버 장바구니에 담기는) 상품 중 최저가를 찾는다
+          const isNaver = it => /naver\.com/.test(String(it.link||""));
+          let nav=null, navP=Infinity;
+          pool.forEach(it=>{ if(isNaver(it)){ const p=parseInt(it.lprice,10); if(p<navP){ navP=p; nav=it; } } });
+          // 5) 네이버페이 상품이 절대최저가보다 22% 이내로만 비싸면 → 한 장바구니 결제를 위해 네이버 우선
+          let best=abs, bestP=absP;
+          if(nav && navP <= absP*1.22){ best=nav; bestP=navP; }
           const title = String(best.title||"").replace(/<[^>]+>/g,"");
-          resolve({ price: bestP, title, link: best.link||"", mall: best.mallName||"" });
+          resolve({ price: bestP, title, link: best.link||"", mall: best.mallName||"", naverpay: isNaver(best) });
         }catch(e){
           resolve({ error:"PARSE", detail:String(e) });
         }
