@@ -539,7 +539,7 @@ function renderCart(){
       ? `<div class="flag ok">💹 네이버 실시간 최저가 적용됨${PRICE_TIME?' · '+PRICE_TIME.toLocaleTimeString("ko-KR",{hour:'2-digit',minute:'2-digit'})+' 기준':''}</div>`
       : `<div class="tipbox" style="background:#eef4fb;border-color:#cfe0f3;color:#2f5e8f">📡 지금은 <b>내장 시세 DB</b> 기준이에요. 가격 서버를 켜면 네이버 실시간 최저가로 바꿀 수 있어요.</div>`}
     <button class="btn" style="margin-top:12px;padding:13px;font-size:15px" onclick="loadLivePrices(this)">💹 네이버 실시간 최저가 불러오기</button>
-    <button class="btn" style="margin-top:8px;padding:14px;font-size:15px;background:var(--blue);box-shadow:0 3px 10px rgba(47,111,176,.3)" onclick="startShopping()">🛒 네이버로 한 번에 장보기</button>
+    <button class="btn" style="margin-top:8px;padding:14px;font-size:15px;background:var(--blue);box-shadow:0 3px 10px rgba(47,111,176,.3)" onclick="startShopping()">🛒 네이버페이로 한 번에 장보기</button>
     <div class="row2" style="margin-top:8px;gap:8px">
       <button class="btn sec" style="padding:11px;font-size:13px" onclick="replanWithCurrentPrices()">🔄 이 가격으로 다시 짜기</button>
       <button class="btn sec" style="padding:11px;font-size:13px" onclick="copyShoppingList()">📋 목록 복사</button>
@@ -560,7 +560,7 @@ function renderCart(){
           <div class="cp">${it.owned?'—':won(it.buyCost)}</div>
           ${it.owned
             ? `<span onclick="togglePantry('${it.id}')" style="font-size:11px;color:var(--green-d);font-weight:700;cursor:pointer">↩︎ 살게요</span>`
-            : `<span onclick="openNaverProduct('${it.id}',this)" style="font-size:11.5px;color:var(--blue);font-weight:700;cursor:pointer">네이버 담기 ›</span>
+            : `<span onclick="openNaverProduct('${it.id}',this)" style="font-size:11.5px;color:var(--blue);font-weight:700;cursor:pointer">장바구니 담기 ›</span>
                <span onclick="togglePantry('${it.id}')" style="display:block;font-size:10.5px;color:var(--sub);cursor:pointer;margin-top:3px">집에 있음 ✓</span>`}
         </div></div>`;
     }).join("");
@@ -680,8 +680,8 @@ function renderShopStep(){
   const sizeLabel = it.unit==="ea" ? `${it.packs}개입` : `${it.packSize>=1000?(it.packSize/1000)+'kg':it.packSize+'g'} × ${it.packs}팩`;
   $("#sheet").innerHTML=`
     <span class="x" onclick="closeModal()">×</span>
-    <h3>🛒 네이버로 장보기</h3>
-    <div class="meta">${_shopIdx+1} / ${total} 번째 재료</div>
+    <h3>🛒 네이버페이로 한 번에 장보기</h3>
+    <div class="meta">${_shopIdx+1} / ${total} 번째 재료 · 모두 <b>한 네이버 장바구니</b>에 모여요</div>
     <div class="budgetbar" style="margin:6px 0 16px"><div style="width:${Math.round((_shopIdx)/total*100)}%"></div></div>
     <div style="text-align:center;padding:8px 0 16px">
       <div style="font-size:24px;font-weight:800">${it.name}</div>
@@ -691,12 +691,14 @@ function renderShopStep(){
     <div class="row2" style="margin-top:10px;gap:8px">
       <button class="btn sec" style="padding:12px;${_shopIdx===0?'opacity:.4':''}" ${_shopIdx===0?'disabled':''} onclick="shopMove(-1)">‹ 이전</button>
       ${_shopIdx<total-1
-        ? `<button class="btn" style="padding:12px" onclick="shopMove(1)">담았어요 · 다음 ›</button>`
-        : `<button class="btn" style="padding:12px" onclick="closeModal()">완료 ✓</button>`}
+        ? `<button class="btn" style="padding:12px" onclick="shopMove(1)">장바구니 담음 · 다음 ›</button>`
+        : `<button class="btn" style="padding:12px;background:#03c75a;border-color:#03c75a" onclick="openNaverCart()">🛒 장바구니 가서 결제</button>`}
     </div>
-    <div class="tipbox" style="margin-top:12px">상품 페이지에서 <b>'장바구니 담기'</b>를 누른 뒤 '다음'을 눌러주세요. 네이버가 외부 앱의 자동 담기를 막아서 한 개씩 담는 방식이에요. 이미 가진 재료는 장바구니에서 '집에 있음 ✓'으로 빼면 여기서도 안 나와요.</div>`;
+    <div style="text-align:center;margin-top:10px"><span onclick="openNaverCart()" style="font-size:12.5px;color:#03c75a;text-decoration:underline;cursor:pointer">🛒 네이버 장바구니 열기</span></div>
+    <div class="tipbox" style="margin-top:12px">각 상품에서 <b>'장바구니'</b>를 누르면 모두 <b>한 네이버페이 장바구니</b>에 모입니다. 마지막에 <b>장바구니에서 한 번에 결제</b>하면 끝! (네이버가 외부 앱의 자동 담기는 막아둬서 상품은 한 개씩 담는 방식이에요.) 이미 가진 재료는 '집에 있음 ✓'으로 빼면 여기서도 안 나와요.</div>`;
 }
 function shopMove(d){ const n=_shopIdx+d; if(n>=0 && n<_shop.length){ _shopIdx=n; renderShopStep(); } }
+function openNaverCart(){ window.open("https://shopping.naver.com/cart","_blank"); }
 
 function renderRecipes(){
   if(!state.plan){ $("#recipe-index").innerHTML=`<div class="empty"><div class="e">📖</div>먼저 식단표를 만들면<br>사용된 레시피가 여기 모여요.</div>`; return; }
