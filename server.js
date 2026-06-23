@@ -39,8 +39,8 @@ function naverLowestPrice(query){
       return resolve({ error:"NO_KEY" });
     }
     const q = encodeURIComponent(query);
-    // sort=asc : 가격 낮은 순. display=1 : 최저가 1건만.
-    const apiPath = `/v1/search/shop.json?query=${q}&display=10&sort=sim`;
+    // 관련도(sim) 상위 40건을 받아 그 안에서 "미끼(비정상 저가) 제외한 진짜 최저가"를 고른다.
+    const apiPath = `/v1/search/shop.json?query=${q}&display=40&sort=sim`;
     const options = {
       hostname:"openapi.naver.com",
       path:apiPath,
@@ -58,9 +58,18 @@ function naverLowestPrice(query){
           const json = JSON.parse(body);
           const items = (json.items||[]).filter(it=>parseInt(it.lprice,10)>0);
           if(!items.length) return resolve({ error:"NO_RESULT" });
-          // 관련도 높은(sim) 상품들 중 최저가 선택
-          let best=items[0], bestP=parseInt(items[0].lprice,10);
-          items.forEach(it=>{ const p=parseInt(it.lprice,10); if(p<bestP){ bestP=p; best=it; } });
+          // 1) 가격 분포의 '하위 30% 백분위'를 기준값으로 잡는다.
+          //    (중앙값은 대용량·프리미엄 상품 때문에 부풀어 정상 저가까지 미끼로 오인하므로,
+          //     대용량에 덜 휘둘리는 낮은 백분위수를 기준으로 사용)
+          const prices = items.map(it=>parseInt(it.lprice,10)).sort((a,b)=>a-b);
+          const anchor = prices[Math.min(prices.length-1, Math.floor(prices.length*0.3))];
+          // 2) 기준값의 40% 미만은 '미끼/다른상품'(종이계란판·미니용량·낱개 등)으로 보고 제외
+          const floor = anchor * 0.4;
+          let pool = items.filter(it=>parseInt(it.lprice,10) >= floor);
+          if(!pool.length) pool = items;   // 전부 걸러지면 안전하게 원본 사용
+          // 3) 남은 정상 상품들 중 '진짜 최저가' 선택
+          let best=pool[0], bestP=parseInt(pool[0].lprice,10);
+          pool.forEach(it=>{ const p=parseInt(it.lprice,10); if(p<bestP){ bestP=p; best=it; } });
           const title = String(best.title||"").replace(/<[^>]+>/g,"");
           resolve({ price: bestP, title, link: best.link||"", mall: best.mallName||"" });
         }catch(e){
